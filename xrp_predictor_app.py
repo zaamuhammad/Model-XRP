@@ -390,20 +390,20 @@ with st.sidebar:
 
 @st.cache_data(ttl=300)
 def fetch_data(period):
-    import yfinance as yf
 
-    ticker = yf.Ticker("XRP-USD")
-
-    df = ticker.history(
+    df = yf.download(
+        "XRP-USD",
         period=period,
         interval="1d",
-        auto_adjust=True
+        auto_adjust=True,
+        progress=False,
+        threads=False
     )
 
     if df.empty:
         raise Exception("Data kosong dari Yahoo Finance")
 
-    df = df[["Open","High","Low","Close","Volume"]]
+    df = df[["Open", "High", "Low", "Close", "Volume"]]
     df.dropna(inplace=True)
 
     return df
