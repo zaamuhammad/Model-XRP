@@ -391,22 +391,52 @@ with st.sidebar:
 @st.cache_data(ttl=300)
 def fetch_data(period):
 
-    df = yf.download(
-        "XRP-USD",
-        period=period,
-        interval="1d",
-        auto_adjust=True,
-        progress=False,
-        threads=False
+    import requests
+
+    limit_map = {
+        "1mo": 30,
+        "2mo": 60,
+        "3mo": 90,
+        "6mo": 180,
+        "1y": 365,
+        "2y": 730
+    }
+
+    limit = limit_map.get(period, 60)
+
+    url = (
+        f"https://api.binance.com/api/v3/klines"
+        f"?symbol=XRPUSDT&interval=1d&limit={limit}"
     )
 
-    if df.empty:
-        raise Exception("Data kosong dari Yahoo Finance")
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
-    df = df[["Open", "High", "Low", "Close", "Volume"]]
-    df.dropna(inplace=True)
+    response = requests.get(url, headers=headers, timeout=20)
 
-    return df
+    if response.status_code != 200:
+        raise Exception(f"Binance API Error: {response.status_code}")
+
+    data = response.json()
+
+    if not data or isinstance(data, dict):
+        raise Exception("Data kosong dari Binance")
+
+    df = pd.DataFrame(data, columns=[
+        "Open Time","Open","High","Low","Close","Volume",
+        "Close Time","Quote Asset Volume","Number of Trades",
+        "Taker Buy Base","Taker Buy Quote","Ignore"
+    ])
+
+    df["Date"] = pd.to_datetime(df["Open Time"], unit="ms")
+
+    df.set_index("Date", inplace=True)
+
+    for col in ["Open", "High", "Low", "Close", "Volume"]:
+        df[col] = df[col].astype(float)
+
+    return df[["Open","High","Low","Close","Volume"]]
 
 @st.cache_resource
 def load_model_scaler():
