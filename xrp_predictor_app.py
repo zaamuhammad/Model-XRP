@@ -388,25 +388,30 @@ with st.sidebar:
 
 # ─── FUNCTIONS ────────────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def fetch_data(period):
     import yfinance as yf
 
-    ticker = yf.Ticker("XRP-USD")
+    try:
+        df = yf.download(
+            "XRP-USD",
+            period=period,
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+            threads=False
+        )
 
-    df = ticker.history(
-        period=period,
-        interval="1d",
-        auto_adjust=True
-    )
+        if df is None or df.empty:
+            raise Exception("Data kosong dari Yahoo Finance")
 
-    if df.empty:
-        raise Exception("Data kosong dari Yahoo Finance")
+        df = df[["Open", "High", "Low", "Close", "Volume"]]
+        df.dropna(inplace=True)
 
-    df = df[["Open","High","Low","Close","Volume"]]
-    df.dropna(inplace=True)
+        return df
 
-    return df
+    except Exception as e:
+        raise Exception(f"Yahoo Finance error: {e}")
 
 @st.cache_resource
 def load_model_scaler():
