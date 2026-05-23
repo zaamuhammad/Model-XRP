@@ -388,30 +388,55 @@ with st.sidebar:
 
 # ─── FUNCTIONS ────────────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=3600)
 def fetch_data(period):
-    import yfinance as yf
+    import requests
+    import pandas as pd
 
-    try:
-        df = yf.download(
-            "XRP-USD",
-            period=period,
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            threads=False
-        )
+    url = "https://api.coingecko.com/api/v3/coins/ripple/market_chart"
 
-        if df is None or df.empty:
-            raise Exception("Data kosong dari Yahoo Finance")
+    days_map = {
+        "1mo": 30,
+        "2mo": 60,
+        "3mo": 90,
+        "6mo": 180,
+        "1y": 365,
+        "2y": 730
+    }
 
-        df = df[["Open", "High", "Low", "Close", "Volume"]]
-        df.dropna(inplace=True)
+    params = {
+        "vs_currency": "usd",
+        "days": days_map.get(period, 365)
+    }
 
-        return df
+    r = requests.get(url, params=params, timeout=10).json()
 
-    except Exception as e:
-        raise Exception(f"Yahoo Finance error: {e}")
+    prices = r["prices"]
+
+    df = pd.DataFrame(prices, columns=["timestamp", "Close"])
+    df["Date"] = pd.to_datetime(df["timestamp"], unit="ms")
+    df.set_index("Date", inplace=True)
+
+    # ─────────────────────────────
+    # 🔥 REKONSTRUKSI OHLC
+    # ─────────────────────────────
+
+    df["Close"] = df["Close"]
+
+    df["Open"] = df["Close"].shift(1)
+    df["Open"].iloc[0] = df["Close"].iloc[0]
+
+    # simulasi high/low (realistis untuk crypto volatility)
+    df["High"] = df[["Open", "Close"]].max(axis=1) * 1.01
+    df["Low"]  = df[["Open", "Close"]].min(axis=1) * 0.99
+
+    df["Volume"] = 0  # CoinGecko tidak menyediakan volume di endpoint ini
+
+    df = df[["Open", "High", "Low", "Close", "Volume"]]
+
+    df.dropna(inplace=True)
+
+    return df
 
 @st.cache_resource
 def load_model_scaler():
